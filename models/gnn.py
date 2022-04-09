@@ -6,10 +6,13 @@ import torch.nn.functional as F
 from torch_geometric.nn import MessagePassing,  global_add_pool
 from torch_geometric.utils import add_self_loops, degree
 
-class GCNConv(MessagePassing):
-    def __init__(self, in_channels, out_channels):
-        super(GCNConv, self).__init__(aggr='add')  # "Add" aggregation.
-        self.lin = torch.nn.Linear(in_channels, out_channels)
+class BlockConv(MessagePassing):
+    def __init__(self, in_channels, out_channels, c_sigma=2, c_u=1):
+        super(BlockConv, self).__init__(aggr='add')  # "Add" aggregation.
+        # self.lin = torch.nn.Linear(in_channels, out_channels)
+        self.c_u = c_u
+        self.fc = nn.Linear(in_channels, out_channels)
+        self.coef = np.sqrt(c_sigma / out_channels)
 
     def forward(self, x, edge_index):
         # x has shape [N, in_channels]
@@ -19,41 +22,47 @@ class GCNConv(MessagePassing):
         edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
 
         # Step 2: Linearly transform node feature matrix.
-        x = self.lin(x)
+        # x = self.lin(x)
 
         # Step 3-5: Start propagating messages.
         return self.propagate(edge_index, size=(x.size(0), x.size(0)), x=x)
 
     def message(self, x_j, edge_index, size):
+        # print("message input", x_j.shape, edge_index.shape)
         # x_j has shape [E, out_channels]
 
         # Step 3: Normalize node features.
-        row, col = edge_index
-        deg = degree(row, size[0], dtype=x_j.dtype)
-        deg_inv_sqrt = deg.pow(-0.5)
-        norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
-
-        return norm.view(-1, 1) * x_j
+        # row, col = edge_index
+        # deg = degree(row, size[0], dtype=x_j.dtype)
+        # deg_inv_sqrt = deg.pow(-0.5)
+        # norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
+        # out = norm.view(-1, 1) * x_j
+        # print("out put of message", out.shape)
+        return  x_j
 
     def update(self, aggr_out):
         # aggr_out has shape [N, out_channels]
-
         # Step 5: Return new node embeddings.
+        x = self.c_u * aggr_out
+        x = F.relu(self.fc(x))
+        aggr_out = self.coef * x
         return aggr_out
 
 
-class Block(nn.Module):
-    def __init__(self, input_dim, output_dim, c_sigma, c_u):
-        super().__init__()
-        self.conv = GCNConv(input_dim, output_dim)
-        self.c_u = c_u
-        # self.fc = nn.Linear(input_dim, output_dim)
-        self.coef = np.sqrt(c_sigma / output_dim)
-
-    def forward(self, x, edge_index):
-        x = F.relu(self.c_u * self.conv(x, edge_index))
-        out = self.coef * x
-        return out
+# class Block(nn.Module):
+#     def __init__(self, input_dim, output_dim, c_sigma, c_u):
+#         super().__init__()
+#         self.conv = BlockConv(input_dim, output_dim)
+#         self.c_u = c_u
+#         self.fc = nn.Linear(input_dim, output_dim)
+#         self.coef = np.sqrt(c_sigma / output_dim)
+#
+#     def forward(self, x, edge_index):
+#         x = self.conv(x, edge_index)
+#         x = self.fc(self.conv(x, edge_index))
+#         x = F.relu(self.c_u * x)
+#         out = self.coef * x
+#         return out
 
 
 class GNN(nn.Module):
@@ -71,11 +80,11 @@ class GNN(nn.Module):
         blocks = []
         for i in range(self.num_layers):
             if i == 0:
-                blocks.append(Block(self.input_dim, self.hidden_dim, self.c_sigma, self.c_u))
+                blocks.append(BlockConv(self.input_dim, self.hidden_dim, self.c_sigma, self.c_u))
             elif i == self.num_layers - 1:
-                blocks.append(Block(self.hidden_dim, self.output_dim, self.c_sigma, self.c_u))
+                blocks.append(BlockConv(self.hidden_dim, self.output_dim, self.c_sigma, self.c_u))
             else:
-                blocks.append(Block(self.hidden_dim, self.hidden_dim, self.c_sigma, self.c_u))
+                blocks.append(BlockConv(self.hidden_dim, self.hidden_dim, self.c_sigma, self.c_u))
         return nn.ModuleList(blocks)
 
     def forward(self, x, edge_index, batch):
