@@ -47,7 +47,7 @@ class Block(nn.Module):
         super().__init__()
         self.conv = GCNConv(input_dim, output_dim)
         self.c_u = c_u
-        self.fc = nn.Linear(input_dim, output_dim)
+        # self.fc = nn.Linear(input_dim, output_dim)
         self.coef = np.sqrt(c_sigma / output_dim)
 
     def forward(self, x, edge_index):
@@ -79,15 +79,11 @@ class GNN(nn.Module):
         return nn.ModuleList(blocks)
 
     def forward(self, x, edge_index, batch):
-        # x, edge_index, batch = data.x, data.edge_index, data.batch
-        # x = self.c_u * inputs
-        # print(x.shape)
         for i in range(self.num_layers):
             x = self.blocks[i](x, edge_index)
-            # print(x.shape)
+        x = F.dropout(x, p=0.5, training=self.training)
 
         x = global_add_pool(x, batch)
-        # print(x.shape)
 
         return x
 
@@ -119,7 +115,8 @@ class GNNClassifier(GNN):
         batch = data.batch
 
         out = self.forward(x,edge_index, batch)
-        probs = F.softmax(out)
+        probs = F.softmax(out, dim=1)
+        # print(probs)
         result = torch.argmax(probs, dim=1)
         return result
 
