@@ -64,7 +64,6 @@ class BlockConv(MessagePassing):
 #         out = self.coef * x
 #         return out
 
-
 class GNN(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -91,10 +90,45 @@ class GNN(nn.Module):
         for i in range(self.num_layers):
             x = self.blocks[i](x, edge_index)
         x = F.dropout(x, p=0.5, training=self.training)
-
         x = global_add_pool(x, batch)
 
         return x
+
+
+class GNNSim(GNN):
+    def __init__(self,config):
+        super().__init__(config)
+
+        def weights_init_normal(m):
+            '''Takes in a module and initializes all linear layers with weight
+               values taken from a normal distribution.'''
+
+            classname = m.__class__.__name__
+            # for every Linear layer in a model
+            if classname.find('Linear') != -1:
+                y = m.in_features
+                # m.weight.data shoud be taken from a normal distribution
+                # m.weight.data.normal_(0.0, 1 / np.sqrt(y))
+                m.weight.data.normal_(0.0, 1)
+                # m.bias.data should be 0
+                m.bias.data.fill_(0)
+        # self.apply(weights_init_normal)
+        self.readout = nn.Parameter(torch.randn(self.output_dim))
+
+    def forward(self, data):
+        x = data.x
+        edge_index = data.edge_index
+        batch = data.batch
+
+        for i in range(self.num_layers):
+            x = self.blocks[i](x, edge_index)
+
+        x = global_add_pool(x, batch)
+
+        # loss = torch.mean(torch.matmul(x, self.readout) / (self.output_dim ** 0.5))
+        loss = torch.mean(torch.matmul(x, self.readout))
+        return loss
+
 
 class GNNClassifier(GNN):
     def __init__(self, config):

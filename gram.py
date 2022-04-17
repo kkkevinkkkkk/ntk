@@ -6,7 +6,7 @@ from os.path import join
 import argparse
 import os
 from multiprocessing import Pool
-from gntk import GNTK
+from kernels import GNTK
 
 parser = argparse.ArgumentParser(description='GNTK computation')
 # several folders, each folder one kernel
