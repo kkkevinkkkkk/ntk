@@ -108,12 +108,12 @@ class GNNSim(GNN):
             if classname.find('Linear') != -1:
                 y = m.in_features
                 # m.weight.data shoud be taken from a normal distribution
-                # m.weight.data.normal_(0.0, 1 / np.sqrt(y))
-                m.weight.data.normal_(0.0, 1)
+                m.weight.data.normal_(0.0, 1 / np.sqrt(y))
+                # m.weight.data.normal_(0.0, 1)
                 # m.bias.data should be 0
                 m.bias.data.fill_(0)
-        # self.apply(weights_init_normal)
-        self.readout = nn.Parameter(torch.randn(self.output_dim))
+        self.apply(weights_init_normal)
+        self.readout = nn.Parameter(torch.randn(self.output_dim), requires_grad=False)
 
     def forward(self, data):
         x = data.x
@@ -125,6 +125,10 @@ class GNNSim(GNN):
 
         x = global_add_pool(x, batch)
 
+        # print("x", torch.sum(x), x.shape)
+        # print("readout", torch.sum(self.readout), self.readout.shape)
+
+        # loss = torch.mean(torch.matmul(F.normalize(x), F.normalize(self.readout, dim=0)) )
         # loss = torch.mean(torch.matmul(x, self.readout) / (self.output_dim ** 0.5))
         loss = torch.mean(torch.matmul(x, self.readout))
         return loss
@@ -141,6 +145,17 @@ class GNNClassifier(GNN):
         x = super().forward(x, edge_index, batch)
         out = self.mlp(x)
         return out
+
+    def get_feature_loss(self, data):
+        if not hasattr(self,"readout"):
+            self.readout = nn.Parameter(torch.randn(self.output_dim), requires_grad=False)
+        x = data.x
+        edge_index = data.edge_index
+        batch = data.batch
+
+        x = super().forward(x, edge_index, batch)
+        loss = torch.mean(torch.matmul(x, self.readout))
+        return loss
 
     def get_loss(self, data):
         x = data.x

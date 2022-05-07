@@ -2,6 +2,7 @@ import math
 import numpy as np
 import scipy as sp
 
+
 class GNTK(object):
     """
     implement the Graph Neural Tangent Kernel
@@ -132,3 +133,39 @@ class GNTK(object):
             return np.sum(jump_ntk) * 2
         else:
             return np.sum(ntk) * 2
+
+
+def calculate_inf_gntk(graphs, num_layers=2, num_mlp_layers=1, jk=0, scale="uniform"):
+    # calculate theortical gntk
+    gntk = GNTK(num_layers=num_layers, num_mlp_layers=num_mlp_layers, jk=jk, scale=scale)
+    A_list = []
+    diag_list = []
+
+    # procesing the data
+    for i in range(len(graphs)):
+        n = len(graphs[i].neighbors)
+        for j in range(n):
+            graphs[i].neighbors[j].append(j)
+        edges = graphs[i].g.edges
+        m = len(edges)
+
+        row = [e[0] for e in edges]
+        col = [e[1] for e in edges]
+        A_list.append(sp.sparse.coo_matrix(([1] * len(edges), (row, col)), shape=(n, n), dtype=np.float32))
+        A_list[-1] = A_list[-1] + A_list[-1].T + sp.sparse.identity(n)
+        diag = gntk.diag(graphs[i], A_list[i])
+        diag_list.append(diag)
+
+    def calc(T):
+        return gntk.gntk(graphs[T[0]], graphs[T[1]], diag_list[T[0]], diag_list[T[1]], A_list[T[0]], A_list[T[1]])
+
+    gram = np.zeros((len(graphs), len(graphs)))
+    graphs_pair = [(i, j) for i in range(len(graphs)) for j in range(i, len(graphs))]
+
+    for pair in graphs_pair:
+        result = calc(pair)
+        gram[pair[0], pair[1]] = result
+        gram[pair[1], pair[0]] = result
+
+    return gram
+
