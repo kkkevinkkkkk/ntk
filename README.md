@@ -19,7 +19,6 @@ This repository contains codes for:
 - [Convergence of NTK](#convergence-of-ntk)
 - [Performance Evaluation](#performance-evaluation)
 - [Lazy Training](#lazy-training)
-- [Authors](#authors)
 
 ## Background
 
@@ -66,12 +65,6 @@ Code and result to evaluate the performance of NTK-related methods on downstream
 Code and result to explore lazy training could be found in: [gnn_lazy_training.ipynb](gnn_lazy_training.ipynb)
 
 
-
-## Authors
-* Yuezhu Xu
-* Xintong Liu
-* Yukun Huang
-* Xingyu Lu
 
 
 
